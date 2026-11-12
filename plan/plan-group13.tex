@@ -11,11 +11,13 @@
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
-\usepackage{float}
+\usepackage{placeins}
 \usepackage[hidelinks]{hyperref}
 
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
-\renewcommand{\arraystretch}{1.18}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
 \newcommand{\dps}{\,$^\circ$/s}
 
 \title{Edge-ML Gesture Controller:\\ On-Device Gesture Recognition and MQTT Control with the Pico W\\[4pt]
@@ -38,7 +40,7 @@ The more interesting part for us is where the recognition runs. A wearable could
 
 We use the TKJ HAT that our group has from the Computer Systems course. It has an ICM-42670 accelerometer and gyroscope, an OLED display, an RGB LED, a buzzer and two buttons, so we do not need extra hardware. Our HAT is already mounted on a Raspberry Pi Pico WH (a Pico W with headers) inside a hand-held case, so Wi-Fi is there and the board is held the same way every time, which helps the gesture recognition. From the pin lists, the HAT does not use the pins of the Pico W's wireless chip (GPIO 23, 24, 25 and 29), but we still have to check in MicroPython that the IMU and the OLED answer. Table~\ref{tab:req} shows which course requirements the project covers.
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Course requirements and how the project meets them.}
 \label{tab:req}
@@ -60,9 +62,9 @@ Mobile app & Not claimed. We have a small web page that shows the live data and 
 
 \section{Architecture}
 
-Figure~\ref{fig:arch} shows the system in three layers. The blue path is edge mode and the orange path is cloud mode. Solid boxes are already written and tested on a PC; dashed boxes are still to build. Nothing has run on the real board yet.
+Figure~\ref{fig:arch} shows the system in three layers. The blue path is edge mode and the orange path is cloud mode. All software components and backend configs are written and PC-tested, while nothing has run on the real board yet.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{architecture}
 \caption{System architecture. In edge mode the Pico W classifies the window and publishes only the result. In cloud mode it publishes the raw window, and a Python service classifies it with the same model and replies.}
@@ -77,7 +79,7 @@ The IMU is read over I2C at 400 kHz with a sampling rate of 50 Hz. We set it to 
 
 All communication is MQTT over the 2.4 GHz Wi-Fi, with a Mosquitto broker on a laptop in the same network. Table~\ref{tab:topics} lists the topics. The status topic is retained and has a last will, so any subscriber can see whether the controller is online. The Pico W reconnects Wi-Fi and MQTT in the background, so gesture recognition and the local outputs keep running while the network is down.
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{MQTT topics (\texttt{DEV} is the device name, for example \texttt{gesture1}).}
 \label{tab:topics}
@@ -127,7 +129,7 @@ At first we wanted a plain sliding window: classify the last 1.5 s every half se
 
 The second choice was the language. The TKJHAT SDK is in C with FreeRTOS, and we know it from Computer Systems. But the IoT exercises use MicroPython, the MQTT client is already tested there, and networking in C would be new for us and not supported by the course. A decision tree is only a few comparisons, so the slower language should not matter much for inference. We will measure that on the Pico instead of assuming it.
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Main design choices.}
 \label{tab:choices}
@@ -202,7 +204,7 @@ The broker runs on the local network, so cloud mode is a best case; a real cloud
 
 \section{Work plan}
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Timeline.}
 \begin{tabularx}{\textwidth}{@{}l L@{}}
@@ -225,7 +227,7 @@ Tue 22.12 & Course deadline for the report and the GitHub site. \\
 
 \section{Risks}
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Main risks.}
 \begin{tabularx}{\textwidth}{@{}p{4.6cm} L@{}}
