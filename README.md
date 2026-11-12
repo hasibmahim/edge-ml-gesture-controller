@@ -2,7 +2,53 @@
 
 A Pico W with the TKJ HAT recognises gestures (shake, circle, flick up, flick down) with a decision tree running on the device. It sends MQTT commands and compares on-device ("edge") with server ("cloud") classification. The team outline and workflow are in [PROJECT_PLAN.md](PROJECT_PLAN.md). The plan we hand in is [plan/plan-group13.tex](plan/plan-group13.tex).
 
-**Status (11 Nov 2026):** all code is written and passes 22 tests on the PC, using fakes and synthetic gestures. **It has not run on a real Pico or HAT yet.** `pico/model.py` is a placeholder trained on made-up gestures, and `results/synthetic_demo/` holds its results. They say nothing about the real device. Real results go in `results/` once the group has recorded data.
+**Status (12 Nov 2026):** all code (firmware, PC pipeline, Web UI with session coach, Docker stack for Mosquitto + Node-RED + InfluxDB + Grafana, and docs site) is written and passes 24 tests on the PC. **It has not run on a real Pico or HAT yet.** `pico/model.py` is a placeholder trained on made-up gestures, and `results/synthetic_demo/` holds its results. They say nothing about the real device. Real results go in `results/` once the group has recorded data.
+
+---
+
+## System Architecture & Visuals
+
+### 1. Three-Layer System Architecture
+![System Architecture](plan/architecture.png)
+
+### 2. Group 13 Hardware (Pico WH + TKJ HAT in Handheld Case) & Pin Mapping
+![Hardware Overview and Pin Mapping](docs/figures/hardware_overview.png)
+
+### 3. 5-Class IMU Gesture Signatures & Motion-Triggered Segmentation (1.50 s Window)
+![Gesture Waveforms](docs/figures/gesture_waveforms.png)
+
+### 4. Edge vs. Cloud Protocol Sequence & Bandwidth Breakdown
+```mermaid
+sequenceDiagram
+    autonumber
+    participant IMU as ICM-42670 (50 Hz)
+    participant P1 as Pico W 1 (Controller)
+    participant B as Mosquitto Broker
+    participant CC as Cloud Classifier (PC)
+    participant P2 as Pico W 2 (Actuator)
+    participant NR as Node-RED / InfluxDB / Grafana
+
+    IMU->>P1: 75 samples × 6 axes (1.5 s window on |ω| > 60°/s)
+    alt Edge Mode (On-Device Tree)
+        P1->>P1: Extract 40 features + predict(x) (~1–5 ms)
+        P1->>B: gesture/<dev>/event (~70 B JSON, only if gesture != idle)
+        P1->>B: iot/pico2/command ("on" / "off" on flick_up / flick_down)
+        B->>P2: Toggle LED
+    else Cloud Mode (Raw Window Offload)
+        P1->>B: gesture/<dev>/raw (903 B binary int16)
+        B->>CC: Forward raw window
+        CC->>CC: Unpack + extract 40 features + predict(x)
+        CC->>B: gesture/<dev>/label ("seq,label,conf" ~38 B)
+        B->>P1: Deliver label reply
+        P1->>B: gesture/<dev>/event (~70 B JSON, if gesture != idle)
+    end
+    P1->>B: gesture/<dev>/metrics (seq, mode, g, conf, lat_ms, bytes)
+    B->>NR: Store gestures & metrics -> Grafana dashboard
+```
+
+![Edge vs Cloud Traffic and Baselines](docs/figures/edge_vs_cloud_comparison.png)
+
+---
 
 ## Files
 

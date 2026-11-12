@@ -81,9 +81,9 @@ arrow((49.5, 27), (49.5, 14), EDGE, "flick up / down\n→ command", lx=0.2)
 # Data management / application layer
 box(64, 45, 33, 10, "Cloud classifier (Python, PC)",
     "same features.py + model.py as the Pico\nreplies \"seq,label,conf\"", edge=CLOUD)
-box(64, 30, 10, 9, "Node-RED", "flow:\nparse, tag", planned=True)
-box(75.5, 30, 10, 9, "InfluxDB", "events,\nmetrics", planned=True)
-box(87, 30, 10, 9, "Grafana", "gestures/min,\nlatency, bytes", planned=True)
+box(64, 30, 10, 9, "Node-RED", "flow:\nparse, tag")
+box(75.5, 30, 10, 9, "InfluxDB", "events,\nmetrics")
+box(87, 30, 10, 9, "Grafana", "gestures/min,\nlatency, bytes")
 box(64, 16, 33, 9, "Evaluation logger, plots, web console",
     "eval_logger.py, plots.py: bytes, latency, timeouts\nweb_ui.py: live view and mode switch")
 box(64, 4, 33, 8.5, "Training (PC, offline)",

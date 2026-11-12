@@ -240,6 +240,14 @@
     <p>
       The Pico W polls the ICM-42670 IMU at 50 Hz over I2C. A motion-triggered segmenter (`pico/features.py`) monitors angular velocity; when $|\omega| &gt; 60^\circ/\text{s}$, it captures a 1.5 s window (75 samples &times; 6 axes) including a 0.2 s pre-trigger buffer (10 samples) before onset. In edge mode, the Pico extracts 40 features and executes the compiled decision tree (`pico/model.py`), driving the OLED, RGB LED, and buzzer immediately.
     </p>
+    <figure>
+      <img src="figures/hardware_overview.png" alt="Group 13 Handheld Controller Hardware and Pin Mapping" />
+      <figcaption>Figure 2: Group 13 handheld controller (front: TKJ HAT in red 3D-printed case; back: Raspberry Pi Pico WH and piezo buzzer) and multi-node GPIO/I2C pin mapping.</figcaption>
+    </figure>
+    <figure>
+      <img src="figures/gesture_waveforms.png" alt="Motion-triggered 1.50 s 6-axis IMU waveforms across the 5 classes" />
+      <figcaption>Figure 3: Motion-triggered 1.50 s windows (75 samples @ 50 Hz, 0.20 s pre-trigger buffer before |&omega;| &gt; 60 &deg;/s onset) across the five classes.</figcaption>
+    </figure>
 
     <h3>2.2 Network Layer</h3>
     <p>
@@ -302,6 +310,10 @@
     </ol>
 
     <h2 id="results">6. Results &amp; Discussion</h2>
+    <figure>
+      <img src="figures/edge_vs_cloud_comparison.png" alt="Edge vs Cloud Traffic per Window and Pipeline Verification vs Baselines" />
+      <figcaption>Figure 4: Left: MQTT payload overhead per window (Edge vs. Hybrid vs. Cloud). Right: Leave-one-person-out pipeline verification on synthetic windows against majority-class and rotation-energy baselines.</figcaption>
+    </figure>
     <div class="status-note">
       <strong>Current Status (12 Nov 2026):</strong> All firmware, PC training/evaluation pipelines, the Docker stack (Mosquitto, Node-RED, InfluxDB, Grafana), and 25 automated PC tests are complete. Hardware data collection (Step 3) and live evaluation runs (Step 8) are scheduled for 13 Nov – 1 Dec 2026; real plots from <code>pc/plots.py</code> and <code>pc/train.py</code> will replace this note once recorded.
     </div>

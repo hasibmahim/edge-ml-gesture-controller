@@ -20,6 +20,8 @@ Gestures: shake, circle, flick up, flick down. A fifth class, "idle", is for ord
 
 We have it already (photos from 6 Nov): the TKJ HAT from Computer Systems, mounted on a Raspberry Pi Pico WH (a Pico W with headers), in the red hand-held case.
 
+![Hardware Overview](docs/figures/hardware_overview.png)
+
 | HAT part | Used for | Connection |
 |---|---|---|
 | ICM-42670 accelerometer + gyroscope | Gesture sensing, 50 Hz | I2C address 0x69, SDA GPIO 12, SCL GPIO 13 |
