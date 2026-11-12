@@ -659,6 +659,43 @@ def micropython_syntax_check():
     assert r.returncode == 0, r.stderr
 
 
+@test
+def stack_nodered_and_grafana_configs_are_valid():
+    import json
+    flow_path = os.path.join(ROOT, "stack", "nodered", "flows.json")
+    dash_path = os.path.join(ROOT, "stack", "grafana", "dashboards", "gesture_controller.json")
+    compose_path = os.path.join(ROOT, "stack", "docker-compose.yml")
+    assert os.path.exists(flow_path) and os.path.exists(dash_path) and os.path.exists(compose_path)
+    with open(flow_path) as f:
+        nodes = json.load(f)
+    topics = {n.get("topic") for n in nodes if n.get("type") == "mqtt in"}
+    assert {"gesture/+/event", "gesture/+/metrics", "gesture/+/status"} <= topics, topics
+    measurements = {n.get("measurement") for n in nodes if n.get("type") == "influxdb out"}
+    assert {"gestures", "metrics", "device_status"} <= measurements, measurements
+    with open(dash_path) as f:
+        dash = json.load(f)
+    assert dash.get("uid") == "group13-gesture" and len(dash.get("panels", [])) >= 6
+
+
+@test
+def web_console_snapshot_and_docs_site():
+    import web_ui
+    hub = web_ui.HubState(device="g1", broker_host="127.0.0.1", broker_port=1)
+    assert all("offload_pct" in v for v in hub.summary_stats().values())
+    hub.run_benchmark_suite()
+    snap = hub.snapshot()
+    assert snap["summary"]["edge"]["windows"] == 0
+    assert snap["sim_summary"]["edge"]["windows"] == 20
+    assert snap["sim_summary"]["cloud"]["windows"] == 20
+    assert len(snap["depth_results"]) >= 3
+    docs_html = os.path.join(ROOT, "docs", "index.html")
+    assert os.path.exists(docs_html)
+    with open(docs_html, encoding="utf-8") as f:
+        html = f.read()
+    for section in ("Introduction", "Architecture", "Functionalities", "Methods", "Evaluation", "Results"):
+        assert section in html, section
+
+
 if __name__ == "__main__":
     failed = [r for r in RESULTS if not r[1]]
     print("\n%d/%d passed" % (len(RESULTS) - len(failed), len(RESULTS)))

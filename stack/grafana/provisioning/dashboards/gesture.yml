@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: group13-gesture
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edge-ML Gesture Controller — Group 13 (521043S IoT, University of Oulu)</title>
+  <style>
+    :root {
+      --ink: #182230;
+      --muted: #526071;
+      --border: #d8e0ea;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --accent: #1f5fa8;
+      --accent-soft: #eef4fb;
+      --cloud: #d9731a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Georgia', 'Times New Roman', serif;
+      line-height: 1.62;
+      font-size: 16px;
+    }
+    .topbar {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .topbar a {
+      color: #93c5fd;
+      text-decoration: none;
+      margin-left: 14px;
+      font-weight: 500;
+    }
+    .topbar a:hover { text-decoration: underline; }
+    .btn-print {
+      background: #1f5fa8;
+      color: #fff;
+      border: 0;
+      border-radius: 4px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .paper {
+      max-width: 920px;
+      margin: 28px auto 60px auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 48px 56px;
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+    }
+    header.title-block {
+      text-align: center;
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 22px;
+      margin-bottom: 28px;
+    }
+    h1 {
+      font-size: 26px;
+      line-height: 1.28;
+      margin: 0 0 10px 0;
+      color: #0f172a;
+    }
+    .subtitle {
+      font-size: 17px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .authors {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    .meta {
+      font-size: 14px;
+      color: var(--muted);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    h2 {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 20px;
+      color: #0f172a;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-top: 34px;
+      margin-bottom: 14px;
+    }
+    h3 {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      color: #1e293b;
+      margin-top: 22px;
+      margin-bottom: 8px;
+    }
+    p, li { text-align: justify; }
+    code {
+      font-family: 'Consolas', 'SFMono-Regular', monospace;
+      font-size: 0.9em;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13.5px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      border-top: 2px solid var(--ink);
+      border-bottom: 1.5px solid var(--ink);
+      background: #f8fafc;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    tr:last-child td {
+      border-bottom: 2px solid var(--ink);
+    }
+    figure {
+      margin: 22px 0;
+      text-align: center;
+    }
+    figure img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    figcaption {
+      font-size: 13.5px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-style: italic;
+    }
+    .status-note {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 12px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13.5px;
+      margin: 18px 0;
+      border-radius: 0 4px 4px 0;
+    }
+    @media print {
+      body { background: #fff; font-size: 11pt; }
+      .topbar { display: none; }
+      .paper {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+      }
+      h2 { page-break-after: avoid; }
+      table, figure { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="topbar">
+    <div>
+      <strong>521043S Internet of Things (Autumn 2026)</strong> &bull; Group 13 Project Report &amp; Plan
+    </div>
+    <div>
+      <a href="#intro">1. Introduction</a>
+      <a href="#arch">2. Architecture</a>
+      <a href="#func">3. Functionalities</a>
+      <a href="#methods">4. Methods &amp; Tools</a>
+      <a href="#eval">5. Evaluation</a>
+      <a href="#results">6. Results</a>
+      <a href="https://github.com/hasibmahim/edge-ml-gesture-controller">GitHub Code</a>
+      <button class="btn-print" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </nav>
+
+  <article class="paper">
+    <header class="title-block">
+      <h1>Edge-ML Gesture Controller:<br/>On-Device Gesture Recognition and MQTT Control with the Pico W</h1>
+      <div class="subtitle">Project Plan &amp; Technical Documentation — Group 13</div>
+      <div class="authors">Syed Amin Al Mahim, Duong Vo, Yumish Niroula</div>
+      <div class="meta">
+        521043S Internet of Things, University of Oulu &bull;
+        Code: <a href="https://github.com/hasibmahim/edge-ml-gesture-controller">github.com/hasibmahim/edge-ml-gesture-controller</a>
+      </div>
+    </header>
+
+    <p><strong>Keywords:</strong> Raspberry Pi Pico W, IMU, gesture recognition, decision tree, edge machine learning, MQTT, Node-RED, InfluxDB, Grafana</p>
+
+    <h2 id="intro">1. Introduction</h2>
+    <p>
+      We build a small wearable or hand-held gesture controller using a Raspberry Pi Pico W fitted with the TKJ HAT (ICM-42670 6-axis IMU, SSD1306 OLED, RGB LED, buzzer, and buttons). When the user performs a hand gesture, the controller recognises it, shows immediate local feedback on the OLED, RGB LED, and buzzer, switches an actuator LED on a second Pico W over MQTT, and logs telemetry to InfluxDB and Grafana.
+    </p>
+    <p>
+      Our core research question is where the recognition should run: <em>for a microcontroller like the Pico W, does classifying gestures on the device (edge mode) instead of streaming raw sensor windows to a server (cloud mode) reduce network traffic and latency enough to matter, and what does it cost in accuracy, model size, and on-device compute time?</em> We implement both modes using the exact same feature extractor and decision tree so that the comparison isolates where the computation happens.
+    </p>
+
+    <table>
+      <caption>Table 1: Course requirements and how Group 13 meets them.</caption>
+      <thead>
+        <tr><th>Requirement</th><th>Implementation</th><th>Category</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Sensor data collection</td><td>ICM-42670 IMU over I2C (400 kHz): 3-axis acceleration (&plusmn;8 g) and 3-axis gyroscope (&plusmn;1000 &deg;/s) at 50 Hz</td><td>Required</td></tr>
+        <tr><td>Data processing on Pico W</td><td>Motion-triggered 1.5 s windows (75 samples), 40 time-domain features, decision tree inference, confidence gate (&ge; 0.6) &amp; cooldown</td><td>Required</td></tr>
+        <tr><td>Output control</td><td>Local SSD1306 OLED text, RGB LED colour &amp; piezo buzzer per gesture; remote LED toggle on a second Pico W over MQTT</td><td>Required</td></tr>
+        <tr><td>Wireless connectivity</td><td>MQTT over 2.4 GHz Wi-Fi (<code>umqtt.simple</code> on Pico W, Mosquitto broker)</td><td>Optional 1</td></tr>
+        <tr><td>Edge machine learning</td><td>Decision tree trained on group recordings, exported to native MicroPython and executed on the Pico W</td><td>Optional 2</td></tr>
+        <tr><td>Cloud integration</td><td>Node-RED pipeline (`stack/nodered/flows.json`) storing events and metrics in InfluxDB v2, visualised in Grafana</td><td>Optional 3</td></tr>
+        <tr><td>Security</td><td>MQTT over TLS with broker authentication (stretch goal)</td><td>Stretch</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="arch">2. Architecture</h2>
+    <figure>
+      <img src="architecture.png" alt="Three-layer system architecture of the Edge-ML Gesture Controller" />
+      <figcaption>Figure 1: System architecture across sensor/device, network, and data management layers. Blue shows edge mode; orange shows cloud mode.</figcaption>
+    </figure>
+
+    <h3>2.1 Sensor and Device Layer</h3>
+    <p>
+      The Pico W polls the ICM-42670 IMU at 50 Hz over I2C. A motion-triggered segmenter (`pico/features.py`) monitors angular velocity; when $|\omega| &gt; 60^\circ/\text{s}$, it captures a 1.5 s window (75 samples &times; 6 axes) including a 0.2 s pre-trigger buffer (10 samples) before onset. In edge mode, the Pico extracts 40 features and executes the compiled decision tree (`pico/model.py`), driving the OLED, RGB LED, and buzzer immediately.
+    </p>
+
+    <h3>2.2 Network Layer</h3>
+    <p>
+      Devices communicate via MQTT over 2.4 GHz Wi-Fi through a Mosquitto broker. Background reconnection (`pico/net.py`) ensures local gesture recognition never blocks if Wi-Fi or the broker drops.
+    </p>
+
+    <table>
+      <caption>Table 2: MQTT topic schema (<code>DEV</code> defaults to <code>gesture1</code>).</caption>
+      <thead>
+        <tr><th>Topic</th><th>Direction</th><th>Payload &amp; Size</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>gesture/DEV/event</code></td><td>Pico &rarr; Broker</td><td>JSON: gesture, confidence, mode (~70 bytes including topic)</td></tr>
+        <tr><td><code>gesture/DEV/raw</code></td><td>Pico &rarr; Server</td><td>Cloud/hybrid offload only. Binary: 3-byte header + 6 &times; 75 int16 = 903 bytes</td></tr>
+        <tr><td><code>gesture/DEV/label</code></td><td>Server &rarr; Pico</td><td>Cloud/hybrid reply: <code>seq,label,confidence</code></td></tr>
+        <tr><td><code>gesture/DEV/metrics</code></td><td>Pico &rarr; Broker</td><td>JSON per window: sequence number, mode, gesture, confidence, latency (ms), bytes</td></tr>
+        <tr><td><code>gesture/DEV/mode</code></td><td>Console &rarr; Pico</td><td><code>edge</code>, <code>cloud</code>, or <code>hybrid</code> remote mode switch</td></tr>
+        <tr><td><code>gesture/DEV/status</code></td><td>Pico &rarr; Broker</td><td><code>online</code> / <code>offline</code> (retained + MQTT Last Will)</td></tr>
+        <tr><td><code>iot/pico2/command</code></td><td>Pico 1 &rarr; Pico 2</td><td><code>on</code> on <code>flick_up</code>, <code>off</code> on <code>flick_down</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.3 Data Management and Application Layer</h3>
+    <p>
+      The Python cloud classifier (`pc/cloud_classifier.py`) imports the same `features.py` and `model.py` as the Pico so both modes produce identical classifications. Node-RED (`stack/nodered/flows.json`) writes events (`gestures` measurement) and window telemetry (`metrics` measurement) into InfluxDB v2, and Grafana (`stack/grafana/dashboards/gesture_controller.json`) displays gestures per minute, decision latency by mode, payload bytes, confidence, and cloud timeouts.
+    </p>
+
+    <h2 id="func">3. Functionalities</h2>
+    <ol>
+      <li><strong>Sensing:</strong> 6-axis IMU sampling at 50 Hz (&plusmn;8 g, &plusmn;1000 &deg;/s).</li>
+      <li><strong>Motion-triggered segmentation:</strong> Aligns 1.5 s windows on movement onset with a 0.2 s pre-trigger buffer.</li>
+      <li><strong>On-device 5-class classification:</strong> <code>shake</code>, <code>circle</code>, <code>flick_up</code>, <code>flick_down</code>, and <code>idle</code> (non-gesture movements).</li>
+      <li><strong>Local multi-modal feedback:</strong> OLED text, gesture-specific RGB LED colour, and piezo buzzer beep.</li>
+      <li><strong>Second-node actuation:</strong> Controls a second Pico W LED via <code>iot/pico2/command</code>.</li>
+      <li><strong>Cloud &amp; hybrid modes:</strong> Raw binary window streaming (903 B) and remote classification over MQTT, switchable via button SW2 or MQTT.</li>
+      <li><strong>Time-series storage &amp; dashboard:</strong> Automated Docker Compose stack with Mosquitto, Node-RED, InfluxDB v2, and provisioned Grafana panels.</li>
+      <li><strong>Offline resilience:</strong> Non-blocking Wi-Fi/MQTT state machine; edge mode continues working during network outages.</li>
+      <li><strong>Labelled data acquisition:</strong> On-board recorder (`pico/collect.py`) and USB serial capture (`pc/capture.py`) plus a guided web pacer (`pc/web_ui.py`).</li>
+    </ol>
+
+    <h2 id="methods">4. Methods &amp; Tools</h2>
+    <p>
+      Each 1.5 s window (75 samples &times; 6 axes) is summarised into 40 time-domain features: per axis, the mean, standard deviation, minimum, maximum, mean-crossing count, and normalised peak-before-dip order (which separates <code>flick_up</code> from <code>flick_down</code>), plus the mean and standard deviation of the 3D acceleration and angular velocity magnitudes.
+    </p>
+    <p>
+      We train scikit-learn decision trees of maximum depth 3, 5, and 8 using Leave-One-Person-Out (LOPO) cross-validation (`pc/train.py`) and compare them against two baselines (majority class and rotation-energy thresholds). Our custom exporter (`pc/export_tree.py`) compiles the trained tree into zero-dependency MicroPython `if/else` statements.
+    </p>
+
+    <h2 id="eval">5. Evaluation Plan &amp; Pre-Registered Decision Rules</h2>
+    <ul>
+      <li><strong>Scenario 1 (Edge vs. Cloud Classification):</strong> 20 repetitions per class per member in both Edge and Cloud modes (~300 windows/mode), plus a 2-minute Wi-Fi drop test. Measured on the Pico using <code>ticks_ms</code> (2 ms polling resolution) and exact MQTT topic + payload byte counts.</li>
+      <li><strong>Scenario 2 (Tree Depth 3 vs. 5 vs. 8):</strong> LOPO macro-F1, per-class recall, confusion matrices, code size in bytes, RAM footprint, and on-device inference time (`pico/bench.py`).</li>
+    </ul>
+    <ol>
+      <li><strong>Rule 1 (Traffic):</strong> Edge mode passes if mean bytes/window &le; 10% of cloud mode (~70 B vs. ~1,030 B for gestures; 0 B vs. ~960 B for idle movements).</li>
+      <li><strong>Rule 2 (Latency):</strong> Edge mode is faster if the 95% bootstrap CI of the median latency difference (Cloud &minus; Edge) is above 0 ms, and user-noticeable if &gt; 100 ms.</li>
+      <li><strong>Rule 3 (Robustness):</strong> 100% of gestures during the 2-minute Wi-Fi outage produce local feedback in Edge mode.</li>
+      <li><strong>Rule 4 (Model Depth):</strong> Deploy the smallest tree depth within 2 percentage points of the highest LOPO macro-F1.</li>
+      <li><strong>Rule 5 (Generalisation):</strong> Usable for an unseen person if LOPO macro-F1 &ge; 0.80 and exceeds both baselines.</li>
+    </ol>
+
+    <h2 id="results">6. Results &amp; Discussion</h2>
+    <div class="status-note">
+      <strong>Current Status (12 Nov 2026):</strong> All firmware, PC training/evaluation pipelines, the Docker stack (Mosquitto, Node-RED, InfluxDB, Grafana), and 25 automated PC tests are complete. Hardware data collection (Step 3) and live evaluation runs (Step 8) are scheduled for 13 Nov – 1 Dec 2026; real plots from <code>pc/plots.py</code> and <code>pc/train.py</code> will replace this note once recorded.
+    </div>
+
+    <h2>7. References</h2>
+    <ol>
+      <li>R. Islam and I. S&aacute;nchez Milara, <em>TKJHAT SDK</em>, University of Oulu, MIT License. <a href="https://github.com/unioulu-ubicomp-programming-courses/JTKJ-PicoRTOS-Project">github.com/unioulu-ubicomp-programming-courses/JTKJ-PicoRTOS-Project</a></li>
+      <li>TDK InvenSense, <em>ICM-42670-P 6-Axis MEMS MotionTracking Device Datasheet</em>.</li>
+      <li>F. Pedregosa et al., &ldquo;Scikit-learn: Machine learning in Python,&rdquo; <em>JMLR</em>, vol. 12, pp. 2825–2830, 2011.</li>
+      <li>OASIS Standard, <em>MQTT Version 3.1.1</em>, 2014.</li>
+      <li>University of Helsinki, <em>Internet of Things MOOC</em>, 2026–2027.</li>
+    </ol>
+  </article>
+</body>
+</html>

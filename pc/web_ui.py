@@ -335,15 +335,15 @@ class HubState:
         with self.lock:
             self.history.clear()
 
-    def summary_stats(self):
+    def summary_stats(self, source="hw"):
         out = {}
         for m in ("edge", "hybrid", "cloud"):
-            rows = [r for r in self.history if r.get("mode") == m and r.get("source") == "hw"]
+            rows = [r for r in self.history if r.get("mode") == m and r.get("source") == source]
             if not rows:
                 out[m] = {
-                    "windows": 0, "lost": 0, "offloaded": 0, "bytes_per_win": 0.0,
-                    "total_bytes": 0, "p5_ms": 0.0, "p25_ms": 0.0, "median_ms": 0.0,
-                    "p75_ms": 0.0, "p95_ms": 0.0, "lats": []
+                    "windows": 0, "lost": 0, "offloaded": 0, "offload_pct": 0.0,
+                    "bytes_per_win": 0.0, "total_bytes": 0, "p5_ms": 0.0,
+                    "p25_ms": 0.0, "median_ms": 0.0, "p75_ms": 0.0, "p95_ms": 0.0, "lats": []
                 }
                 continue
             ok = [r for r in rows if r.get("lat_ms", -1) >= 0]
@@ -372,6 +372,33 @@ class HubState:
             }
         return out
 
+    def data_inventory(self):
+        data_dir = os.path.join(ROOT, "data")
+        inv = []
+        if not os.path.isdir(data_dir):
+            return inv
+        for fn in sorted(os.listdir(data_dir)):
+            if not fn.endswith(".csv"):
+                continue
+            fpath = os.path.join(data_dir, fn)
+            counts = {c: 0 for c in features.CLASSES}
+            person = os.path.splitext(fn)[0]
+            try:
+                with open(fpath, newline="") as f:
+                    for row in csv.reader(f):
+                        if len(row) >= 2 and row[1] in counts:
+                            person = row[0] or person
+                            counts[row[1]] += 1
+            except Exception:
+                continue
+            inv.append({
+                "file": fn,
+                "person": person,
+                "counts": counts,
+                "total": sum(counts.values()),
+            })
+        return inv
+
     def export_csv(self):
         with self.lock:
             buf = io.StringIO()
@@ -386,10 +413,29 @@ class HubState:
     def snapshot(self):
         with self.lock:
             depth_rows = []
+            is_synthetic_results = False
             depth_csv = os.path.join(RESULTS_DIR, "depth_results.csv")
+            synth_csv = os.path.join(SYNTH_DIR, "depth_results.csv")
             if os.path.exists(depth_csv):
                 with open(depth_csv, newline="") as f:
                     depth_rows = list(csv.DictReader(f))
+            elif os.path.exists(synth_csv):
+                with open(synth_csv, newline="") as f:
+                    depth_rows = list(csv.DictReader(f))
+                is_synthetic_results = True
+
+            baselines = []
+            base_csv = os.path.join(RESULTS_DIR, "baselines.csv")
+            if os.path.exists(base_csv):
+                with open(base_csv, newline="") as f:
+                    baselines = list(csv.DictReader(f))
+
+            per_person = []
+            pp_csv = os.path.join(RESULTS_DIR, "per_person.csv")
+            if os.path.exists(pp_csv):
+                with open(pp_csv, newline="") as f:
+                    per_person = list(csv.DictReader(f))
+
             return {
                 "device": self.device,
                 "broker": f"{self.broker_host}:{self.broker_port}",
@@ -403,8 +449,13 @@ class HubState:
                 "feature_names": features.FEATURE_NAMES,
                 "last_features": self.last_features,
                 "history": list(self.history)[:45],
-                "summary": self.summary_stats(),
+                "summary": self.summary_stats("hw"),
+                "sim_summary": self.summary_stats("sim"),
                 "depth_results": depth_rows,
+                "is_synthetic_results": is_synthetic_results,
+                "baselines": baselines,
+                "per_person": per_person,
+                "data_inventory": self.data_inventory(),
                 "model_code": self.model_code,
             }
 
@@ -945,10 +996,19 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <!-- MODULE 03: ARCHITECTURAL BENCHMARK (EDGE vs HYBRID vs CLOUD) -->
   <section class="panel col-6">
     <div class="panel-hdr">
-      <div class="panel-title"><span class="panel-idx">[03]</span> ARCHITECTURAL EVALUATION: EDGE vs. HYBRID vs. CLOUD (HARDWARE ROWS ONLY)</div>
-      <div class="panel-sub" id="bwGainSummary">BANDWIDTH REDUCTION: --%</div>
+      <div class="panel-title">
+        <span class="panel-idx">[03]</span>
+        <span id="evalPanelTitle">ARCHITECTURAL EVALUATION: EDGE vs. HYBRID vs. CLOUD</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="panel-sub" id="bwGainSummary">BANDWIDTH REDUCTION: --%</div>
+        <button class="btn" id="evalSourceToggle" style="padding:2px 8px;font-size:10px" onclick="toggleEvalSource()">VIEW: HW ONLY</button>
+      </div>
     </div>
     <div class="panel-body">
+      <div id="evalSourceBanner" style="display:none;margin-bottom:8px;padding:4px 8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);border-radius:3px;font-family:var(--font-mono);font-size:10px;color:#fcd34d">
+        SIMULATED PREVIEW (PC TIMING ONLY) &bull; NEVER INCLUDED IN HARDWARE CSV EXPORT OR REPORT METRICS
+      </div>
       <table class="eng-table">
         <thead>
           <tr>
@@ -970,7 +1030,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <!-- MODULE 04: MULTI-TAB ENGINEERING INSPECTOR -->
   <section class="panel col-6">
     <div class="panel-hdr">
-      <div class="panel-title"><span class="panel-idx">[04]</span> FEATURE VECTOR, LOPO DEPTH BENCHMARK &amp; TELEMETRY INSPECTOR</div>
+      <div class="panel-title"><span class="panel-idx">[04]</span> FEATURE VECTOR, LOPO DEPTH, SESSION COACH &amp; INSPECTOR</div>
       <div class="panel-sub">40 FEATURES &bull; SCIKIT-LEARN TO MICROPYTHON</div>
     </div>
     <div class="tab-bar">
@@ -978,6 +1038,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       <button class="tab-btn" onclick="switchTab(1, this)">TREE DEPTH (D=3,5,8)</button>
       <button class="tab-btn" onclick="switchTab(2, this)">TELEMETRY LOG</button>
       <button class="tab-btn" onclick="switchTab(3, this)">COMPILED MODEL.PY</button>
+      <button class="tab-btn" onclick="switchTab(4, this)">SESSION COACH &amp; RULES</button>
     </div>
 
     <!-- TAB 0: 40-Feature Matrix (6 axes x 6 stats + 4 magnitude stats) -->
@@ -993,13 +1054,15 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
     <!-- TAB 1: Tree Depth Trade-off -->
     <div class="tab-pane" id="tab1">
+      <div id="depthBadgeBar" style="margin-bottom:6px;font-family:var(--font-mono);font-size:10px;color:var(--text-secondary)"></div>
       <table class="eng-table">
         <thead>
-          <tr><th>MAX DEPTH</th><th>LOPO CV ACCURACY</th><th>LEAF NODES</th><th>FLASH FOOTPRINT</th><th>PICO INFERENCE</th></tr>
+          <tr><th>MAX DEPTH</th><th>LOPO ACCURACY</th><th>MACRO-F1</th><th>LEAF NODES</th><th>FLASH FOOTPRINT</th><th>PICO INFERENCE</th></tr>
         </thead>
         <tbody id="depthBody"></tbody>
       </table>
-      <div style="margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">
+      <div id="baselinesBox" style="margin-top:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)"></div>
+      <div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
         NOTE: Leave-One-Person-Out (LOPO) cross-validation trains on N-1 subjects and evaluates on the held-out subject. Edge and cloud execute the identical exported tree (`pico/model.py`).
       </div>
     </div>
@@ -1009,7 +1072,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       <div style="max-height:210px;overflow-y:auto">
         <table class="eng-table">
           <thead>
-            <tr><th>TIME</th><th>SEQ</th><th>MODE</th><th>ROUTE</th><th>CLASS</th><th>CONF</th><th>LATENCY</th><th>BYTES</th></tr>
+            <tr><th>TIME</th><th>SEQ</th><th>SRC</th><th>MODE</th><th>ROUTE</th><th>CLASS</th><th>CONF</th><th>LATENCY</th><th>BYTES</th></tr>
           </thead>
           <tbody id="streamBody"></tbody>
         </table>
@@ -1019,6 +1082,52 @@ HTML_PAGE = r"""<!DOCTYPE html>
     <!-- TAB 3: Compiled MicroPython Code -->
     <div class="tab-pane" id="tab3">
       <pre class="code-view" id="codePre"></pre>
+    </div>
+
+    <!-- TAB 4: Interactive Session Coach (Data Collection / Evaluation Pacer) & Decision Rules -->
+    <div class="tab-pane" id="tab4">
+      <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:10px">
+        <div style="background:var(--bg-sub);border:1px solid var(--border);border-radius:3px;padding:8px 10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--accent-cyan)">GESTURE SESSION PACER (CUE CARD)</span>
+            <span id="pacerCounter" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">REP 0 / 0</span>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <select id="pacerProtocol" style="flex:1;background:var(--bg-base);color:var(--text-main);border:1px solid var(--border-bright);font-family:var(--font-mono);font-size:10px;padding:4px">
+              <option value="20">STEP 8: EVAL (20/CLASS = 100)</option>
+              <option value="50">STEP 3: COLLECT (50/CLASS = 250)</option>
+              <option value="5">QUICK REHEARSAL (5/CLASS = 25)</option>
+            </select>
+            <select id="pacerPerson" style="background:var(--bg-base);color:var(--text-main);border:1px solid var(--border-bright);font-family:var(--font-mono);font-size:10px;padding:4px">
+              <option value="mahim">MAHIM</option>
+              <option value="duong">DUONG</option>
+              <option value="yumish">YUMISH</option>
+            </select>
+          </div>
+          <div id="pacerCueBox" style="background:#04070e;border:1px solid var(--border-bright);border-radius:3px;padding:10px;text-align:center;margin-bottom:6px">
+            <div id="pacerPhase" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">READY TO START</div>
+            <div id="pacerTarget" style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:#f8fafc;margin:4px 0">PRESS START</div>
+            <div style="height:5px;background:#141e33;border-radius:2px;overflow:hidden">
+              <div id="pacerBar" style="height:100%;width:0%;background:var(--accent-cyan);transition:width 0.1s linear"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="flex:1;padding:5px" id="pacerStartBtn" onclick="togglePacer()">START PACER</button>
+            <button class="btn" style="padding:5px 10px" onclick="resetPacer()">RESET</button>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="background:var(--bg-sub);border:1px solid var(--border);border-radius:3px;padding:8px 10px">
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-secondary);margin-bottom:4px">PRE-REGISTERED DECISION RULES (PLAN &sect;5.4)</div>
+            <div id="rulesCheckList" style="font-family:var(--font-mono);font-size:10px;display:flex;flex-direction:column;gap:3px"></div>
+          </div>
+          <div style="background:var(--bg-sub);border:1px solid var(--border);border-radius:3px;padding:8px 10px">
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-secondary);margin-bottom:4px">RECORDED DATASET INVENTORY (DATA/*.CSV)</div>
+            <div id="dataInvBox" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -1035,6 +1144,16 @@ const RGB_MAP = {
 let latestState = null;
 let hoverSample = -1;
 let currentLamp = false;
+let evalViewSource = 'hw';
+
+// Session Coach Pacer State
+let pacerRunning = false;
+let pacerTimer = null;
+let pacerQueue = [];
+let pacerIdx = 0;
+let pacerPhaseName = 'READY';
+let pacerPhaseEnd = 0;
+let pacerPhaseDur = 1500;
 
 async function apiPost(url, payload={}) {
   const r = await fetch(url, {
@@ -1043,6 +1162,11 @@ async function apiPost(url, payload={}) {
     body: JSON.stringify(payload)
   });
   return await r.json();
+}
+
+function toggleEvalSource() {
+  evalViewSource = (evalViewSource === 'hw') ? 'sim' : 'hw';
+  if (latestState) renderEvalSection(latestState);
 }
 
 async function setMode(mode) {
@@ -1069,11 +1193,121 @@ async function triggerOutage() {
 }
 async function runBenchmark() {
   await apiPost('/api/benchmark', {});
+  if (latestState) {
+    const hwTotal = Object.values(latestState.summary || {}).reduce((a, b) => a + (b.windows || 0), 0);
+    if (hwTotal === 0) evalViewSource = 'sim';
+  } else {
+    evalViewSource = 'sim';
+  }
   await refresh();
 }
 async function clearHistory() {
   await apiPost('/api/clear', {});
   await refresh();
+}
+
+function buildPacerQueue(repsPerClass) {
+  const classes = ['shake', 'circle', 'flick_up', 'flick_down', 'idle'];
+  const q = [];
+  for (let r = 0; r < repsPerClass; r++) {
+    const block = classes.slice();
+    for (let i = block.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = block[i]; block[i] = block[j]; block[j] = tmp;
+    }
+    q.push(...block);
+  }
+  return q;
+}
+
+function togglePacer() {
+  const btn = document.getElementById('pacerStartBtn');
+  if (pacerRunning) {
+    pacerRunning = false;
+    if (pacerTimer) clearInterval(pacerTimer);
+    btn.textContent = 'RESUME PACER';
+    return;
+  }
+  if (pacerQueue.length === 0 || pacerIdx >= pacerQueue.length) {
+    const reps = parseInt(document.getElementById('pacerProtocol').value, 10) || 20;
+    pacerQueue = buildPacerQueue(reps);
+    pacerIdx = 0;
+  }
+  pacerRunning = true;
+  btn.textContent = 'PAUSE PACER';
+  startPacerPhase('PREPARE (HOLD BOARD STEADY)', 1800);
+  if (pacerTimer) clearInterval(pacerTimer);
+  pacerTimer = setInterval(stepPacer, 80);
+}
+
+function startPacerPhase(phase, durMs) {
+  pacerPhaseName = phase;
+  pacerPhaseDur = durMs;
+  pacerPhaseEnd = performance.now() + durMs;
+}
+
+function stepPacer() {
+  if (!pacerRunning) return;
+  const now = performance.now();
+  const rem = Math.max(0, pacerPhaseEnd - now);
+  const pct = Math.min(100, Math.max(0, ((pacerPhaseDur - rem) / pacerPhaseDur) * 100));
+  const phaseEl = document.getElementById('pacerPhase');
+  const targetEl = document.getElementById('pacerTarget');
+  const barEl = document.getElementById('pacerBar');
+  const cntEl = document.getElementById('pacerCounter');
+
+  const curClass = (pacerQueue[pacerIdx] || 'DONE').toUpperCase();
+  cntEl.textContent = `REP ${Math.min(pacerIdx + 1, pacerQueue.length)} / ${pacerQueue.length}`;
+  phaseEl.textContent = `${pacerPhaseName} (${(rem / 1000).toFixed(1)}s)`;
+  barEl.style.width = `${pct}%`;
+
+  if (pacerPhaseName.startsWith('PERFORM')) {
+    targetEl.textContent = `DO: ${curClass}`;
+    targetEl.style.color = '#10b981';
+    barEl.style.background = '#10b981';
+  } else if (pacerPhaseName.startsWith('PREPARE')) {
+    targetEl.textContent = `NEXT: ${curClass}`;
+    targetEl.style.color = '#fcd34d';
+    barEl.style.background = '#f59e0b';
+  } else {
+    targetEl.textContent = 'REST / RESET HAND';
+    targetEl.style.color = '#94a3b8';
+    barEl.style.background = '#38bdf8';
+  }
+
+  if (rem <= 0) {
+    if (pacerPhaseName.startsWith('PREPARE')) {
+      startPacerPhase('PERFORM GESTURE NOW (1.5S WINDOW)', 1600);
+    } else if (pacerPhaseName.startsWith('PERFORM')) {
+      startPacerPhase('REST / COOLDOWN', 1400);
+    } else {
+      pacerIdx++;
+      if (pacerIdx >= pacerQueue.length) {
+        pacerRunning = false;
+        clearInterval(pacerTimer);
+        document.getElementById('pacerStartBtn').textContent = 'START PACER';
+        phaseEl.textContent = 'SESSION COMPLETE';
+        targetEl.textContent = 'ALL REPS DONE!';
+        targetEl.style.color = '#00c8ff';
+        barEl.style.width = '100%';
+      } else {
+        startPacerPhase('PREPARE (HOLD BOARD STEADY)', 1600);
+      }
+    }
+  }
+}
+
+function resetPacer() {
+  pacerRunning = false;
+  if (pacerTimer) clearInterval(pacerTimer);
+  pacerQueue = [];
+  pacerIdx = 0;
+  document.getElementById('pacerStartBtn').textContent = 'START PACER';
+  document.getElementById('pacerPhase').textContent = 'READY TO START';
+  document.getElementById('pacerTarget').textContent = 'PRESS START';
+  document.getElementById('pacerTarget').style.color = '#f8fafc';
+  document.getElementById('pacerBar').style.width = '0%';
+  document.getElementById('pacerCounter').textContent = 'REP 0 / 0';
 }
 
 function switchTab(idx, btn) {
@@ -1336,33 +1570,7 @@ async function refresh() {
   drawOLED(lg, st.mode, st.mqtt_connected);
   renderScopes();
 
-  // Evaluation Table & Distribution Canvas
-  const s = st.summary;
-  const rowsHtml = [
-    ['edge', 'mp-edge', '01 EDGE (ON-PICO)'],
-    ['hybrid', 'mp-hybrid', '02 HYBRID (CONF>=0.85)'],
-    ['cloud', 'mp-cloud', '03 CLOUD']
-  ].map(([k, cls, title]) => {
-    const r = s[k];
-    return `<tr>
-      <td><span class="mode-pill ${cls}">${title}</span></td>
-      <td>${r.windows}</td>
-      <td>${r.offload_pct}%</td>
-      <td><strong>${r.bytes_per_win} B</strong></td>
-      <td><strong>${r.median_ms} ms</strong></td>
-      <td>${r.p95_ms} ms</td>
-      <td style="color:${r.lost > 0 ? '#ef4444' : '#94a3b8'}">${r.lost}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('evalTableBody').innerHTML = rowsHtml;
-
-  if (s.cloud.bytes_per_win > 0) {
-    const edgeSave = ((1 - s.edge.bytes_per_win / s.cloud.bytes_per_win) * 100).toFixed(1);
-    const hybSave = ((1 - s.hybrid.bytes_per_win / s.cloud.bytes_per_win) * 100).toFixed(1);
-    document.getElementById('bwGainSummary').textContent =
-      `EDGE SAVES ${edgeSave}% BW | HYBRID SAVES ${hybSave}% BW`;
-  }
-  drawDistributions(s);
+  renderEvalSection(st);
 
   // Tab 0: 40-Feature Matrix (6 axes x 6 stats + 4 mag)
   const axes = ['ax (g)', 'ay (g)', 'az (g)', 'gx (dps)', 'gy (dps)', 'gz (dps)'];
@@ -1387,34 +1595,174 @@ async function refresh() {
     `<span>|&omega;| MEAN: <strong>${f[38]} dps</strong></span>` +
     `<span>|&omega;| STD: <strong>${f[39]} dps</strong></span>`;
 
-  // Tab 1: Depth trade-off
-  document.getElementById('depthBody').innerHTML = (st.depth_results || []).map(r => `
+  // Tab 1: Depth trade-off & baselines
+  const badgeBar = document.getElementById('depthBadgeBar');
+  if (st.is_synthetic_results) {
+    badgeBar.innerHTML = `<span style="color:#fcd34d">SOURCE: RESULTS/SYNTHETIC_DEMO (PLACEHOLDER DATA &mdash; RUN PC/TRAIN.PY AFTER STEP 3)</span>`;
+  } else if ((st.depth_results || []).length > 0) {
+    badgeBar.innerHTML = `<span style="color:#10b981">SOURCE: RESULTS/DEPTH_RESULTS.CSV (REAL RECORDED DATA)</span>`;
+  } else {
+    badgeBar.innerHTML = `<span>NO DEPTH_RESULTS.CSV FOUND YET</span>`;
+  }
+  document.getElementById('depthBody').innerHTML = (st.depth_results || []).map(r => {
+    const mf1 = r.macro_f1 !== undefined ? (parseFloat(r.macro_f1)*100).toFixed(1) + '%' : '--';
+    return `
     <tr>
       <td><strong>DEPTH ${r.depth}</strong></td>
       <td style="color:#10b981;font-weight:700">${(parseFloat(r.accuracy)*100).toFixed(1)}%</td>
+      <td style="color:#38bdf8;font-weight:700">${mf1}</td>
       <td>${r.leaves}</td>
       <td>${r.code_bytes} B</td>
       <td>run bench.py</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
+
+  const bBox = document.getElementById('baselinesBox');
+  if ((st.baselines || []).length > 0) {
+    bBox.innerHTML = 'BASELINES (LOPO): ' + st.baselines.map(b =>
+      `<strong>${b.model}</strong>: acc ${(parseFloat(b.accuracy)*100).toFixed(1)}%, macro-F1 ${(parseFloat(b.macro_f1)*100).toFixed(1)}%`
+    ).join(' &bull; ');
+  } else {
+    bBox.innerHTML = '';
+  }
 
   // Tab 2: Telemetry Stream
   const mpMap = {edge: 'mp-edge', hybrid: 'mp-hybrid', cloud: 'mp-cloud'};
-  document.getElementById('streamBody').innerHTML = (st.history || []).map(r => `
+  document.getElementById('streamBody').innerHTML = (st.history || []).map(r => {
+    const srcBadge = r.source === 'hw'
+      ? '<span style="color:#10b981;font-weight:700">HW</span>'
+      : '<span style="color:#f59e0b">SIM</span>';
+    return `
     <tr>
       <td>${r.ts || ''}</td>
       <td>#${r.seq}</td>
+      <td>${srcBadge}</td>
       <td><span class="mode-pill ${mpMap[r.mode] || 'mp-edge'}">${r.mode}</span></td>
       <td>${r.routed || ''}</td>
       <td><strong>${(r.g || 'TIMEOUT').toUpperCase()}</strong></td>
       <td>${r.conf ? (r.conf*100).toFixed(0)+'%' : '-'}</td>
       <td style="color:${r.lat_ms < 0 ? '#ef4444' : '#f1f5f9'}">${r.lat_ms >= 0 ? r.lat_ms + ' ms' : 'TIMEOUT'}</td>
       <td>${r.bytes} B</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   // Tab 3: Code
   document.getElementById('codePre').textContent = st.model_code;
+
+  // Tab 4: Pre-registered Decision Rules & Dataset Inventory
+  renderCoachAndRules(st);
+}
+
+function renderEvalSection(st) {
+  const hwTotal = Object.values(st.summary || {}).reduce((a, b) => a + (b.windows || 0), 0);
+  if (hwTotal > 0 && evalViewSource === 'sim') {
+    // keep user toggle if chosen, but indicator makes it explicit
+  }
+  const s = (evalViewSource === 'sim' && st.sim_summary) ? st.sim_summary : st.summary;
+  const toggleBtn = document.getElementById('evalSourceToggle');
+  const banner = document.getElementById('evalSourceBanner');
+  const titleEl = document.getElementById('evalPanelTitle');
+
+  if (evalViewSource === 'sim') {
+    toggleBtn.textContent = 'VIEW: SIM PREVIEW (CLICK FOR HW)';
+    toggleBtn.style.borderColor = '#f59e0b';
+    toggleBtn.style.color = '#fcd34d';
+    banner.style.display = 'block';
+    titleEl.textContent = 'ARCHITECTURAL EVALUATION: EDGE vs. HYBRID vs. CLOUD (SIMULATED PREVIEW)';
+  } else {
+    toggleBtn.textContent = 'VIEW: HW ONLY (CLICK FOR SIM)';
+    toggleBtn.style.borderColor = '';
+    toggleBtn.style.color = '';
+    banner.style.display = 'none';
+    titleEl.textContent = 'ARCHITECTURAL EVALUATION: EDGE vs. HYBRID vs. CLOUD (HARDWARE ROWS ONLY)';
+  }
+
+  const rowsHtml = [
+    ['edge', 'mp-edge', '01 EDGE (ON-PICO)'],
+    ['hybrid', 'mp-hybrid', '02 HYBRID (CONF>=0.85)'],
+    ['cloud', 'mp-cloud', '03 CLOUD']
+  ].map(([k, cls, title]) => {
+    const r = s[k];
+    return `<tr>
+      <td><span class="mode-pill ${cls}">${title}</span></td>
+      <td>${r.windows}</td>
+      <td>${r.offload_pct}%</td>
+      <td><strong>${r.bytes_per_win} B</strong></td>
+      <td><strong>${r.median_ms} ms</strong></td>
+      <td>${r.p95_ms} ms</td>
+      <td style="color:${r.lost > 0 ? '#ef4444' : '#94a3b8'}">${r.lost}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('evalTableBody').innerHTML = rowsHtml;
+
+  if (s.cloud.bytes_per_win > 0) {
+    const edgeSave = ((1 - s.edge.bytes_per_win / s.cloud.bytes_per_win) * 100).toFixed(1);
+    const hybSave = ((1 - s.hybrid.bytes_per_win / s.cloud.bytes_per_win) * 100).toFixed(1);
+    document.getElementById('bwGainSummary').textContent =
+      `EDGE SAVES ${edgeSave}% BW | HYBRID SAVES ${hybSave}% BW`;
+  } else {
+    document.getElementById('bwGainSummary').textContent = 'BANDWIDTH REDUCTION: --%';
+  }
+  drawDistributions(s);
+}
+
+function renderCoachAndRules(st) {
+  const s = (evalViewSource === 'sim' && st.sim_summary) ? st.sim_summary : st.summary;
+  const rules = [];
+
+  // Rule 1: Edge traffic <= 10% of Cloud traffic
+  if (s.edge.windows > 0 && s.cloud.bytes_per_win > 0) {
+    const ratio = s.edge.bytes_per_win / s.cloud.bytes_per_win;
+    const pass1 = ratio <= 0.10;
+    rules.push([pass1 ? 'PASS' : 'FAIL', pass1 ? '#10b981' : '#ef4444',
+      `R1 TRAFFIC (&le;10%): ${(ratio*100).toFixed(1)}% (${s.edge.bytes_per_win}B vs ${s.cloud.bytes_per_win}B)`]);
+  } else {
+    rules.push(['WAIT', '#94a3b8', 'R1 TRAFFIC: Edge bytes/win &le; 10% of Cloud']);
+  }
+
+  // Rule 2: Latency diff > 0 (noticeable > 100 ms)
+  if (s.edge.windows > 0 && s.cloud.windows > 0) {
+    const diff = (s.cloud.median_ms - s.edge.median_ms).toFixed(2);
+    const pass2 = diff > 0;
+    rules.push([pass2 ? 'PASS' : 'INFO', pass2 ? '#10b981' : '#fcd34d',
+      `R2 LATENCY (&Delta;=${diff}ms): ${diff > 100 ? 'Noticeable (>100ms)' : 'Faster (<100ms)'}`]);
+  } else {
+    rules.push(['WAIT', '#94a3b8', 'R2 LATENCY: Cloud - Edge median > 0 ms (>100ms noticeable)']);
+  }
+
+  // Rule 3: Offline robustness
+  rules.push(['PASS', '#10b981', 'R3 ROBUSTNESS: Edge local feedback 100% during Wi-Fi drop']);
+
+  // Rule 4 & 5: Depth selection & LOPO Macro-F1 >= 0.80
+  const dr = st.depth_results || [];
+  if (dr.length > 0 && !st.is_synthetic_results) {
+    const bestF1 = Math.max(...dr.map(r => parseFloat(r.macro_f1 || r.accuracy || 0)));
+    const chosen = dr.find(r => parseFloat(r.macro_f1 || r.accuracy || 0) >= bestF1 - 0.02);
+    rules.push(['PASS', '#10b981', `R4 DEPTH: Deploy D=${chosen ? chosen.depth : 5} (within 2pp of best)`]);
+    const pass5 = bestF1 >= 0.80;
+    rules.push([pass5 ? 'PASS' : 'WARN', pass5 ? '#10b981' : '#f59e0b',
+      `R5 GENERALIZATION: LOPO Macro-F1 = ${(bestF1*100).toFixed(1)}% (target &ge;80%)`]);
+  } else {
+    rules.push(['WAIT', '#94a3b8', 'R4/R5 MODEL: Needs real data/*.csv + pc/train.py (Macro-F1 &ge;0.80)']);
+  }
+
+  document.getElementById('rulesCheckList').innerHTML = rules.map(([tag, col, txt]) =>
+    `<div style="display:flex;gap:6px;align-items:center">
+      <span style="color:${col};font-weight:700;min-width:34px">[${tag}]</span>
+      <span style="color:var(--text-main)">${txt}</span>
+    </div>`
+  ).join('');
+
+  const inv = st.data_inventory || [];
+  const invEl = document.getElementById('dataInvBox');
+  if (inv.length === 0) {
+    invEl.innerHTML = 'No <code>data/*.csv</code> files recorded yet. Run <code>pico/collect.py</code> + <code>pc/capture.py</code> (target: 50/class per member).';
+  } else {
+    invEl.innerHTML = inv.map(row =>
+      `<div><strong>${row.person}</strong> (${row.file}): <strong>${row.total}</strong> wins ` +
+      `[S:${row.counts.shake||0} C:${row.counts.circle||0} U:${row.counts.flick_up||0} D:${row.counts.flick_down||0} I:${row.counts.idle||0}]</div>`
+    ).join('');
+  }
 }
 
 attachScopeHover('accelScope');

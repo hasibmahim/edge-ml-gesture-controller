@@ -21,9 +21,11 @@ A Pico W with the TKJ HAT recognises gestures (shake, circle, flick up, flick do
 | `pc/cloud_classifier.py` | PC | Cloud mode: classifies raw windows with the same model and replies |
 | `pc/eval_logger.py` | PC | Logs the Pico's metrics to CSV during evaluation runs |
 | `pc/plots.py` | PC | Summary table with bootstrap confidence intervals, and plots for the report |
-| `pc/web_ui.py` | PC | Web console: live gestures and metrics from MQTT, mode switch, lamp on/off. Its simulator is for demos only: simulated rows never enter the summary or the CSV export. |
+| `pc/web_ui.py` | PC | Web console: live gestures and metrics from MQTT, mode switch, lamp on/off, interactive session coach & pacer. Its simulator is for demos only: simulated rows never enter the hardware summary or the CSV export. |
+| `stack/` | Docker | Mosquitto broker, Node-RED flow (`nodered/flows.json`), InfluxDB v2 and provisioned Grafana dashboard (`grafana/dashboards/gesture_controller.json`) |
+| `docs/index.html` | Docs | GitHub Pages project website and print-to-PDF report template |
 | `PROJECT_PLAN.md` | Docs | Team outline and workflow: steps, who does what, timeline, open decisions |
-| `tests/test_project.py` | PC | 22 tests with fake hardware, plus a real MQTT broker test |
+| `tests/test_project.py` | PC | 24 tests with fake hardware, stack validation, plus a real MQTT broker test |
 
 ## Setup
 

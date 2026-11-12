@@ -1,0 +1,93 @@
+{
+  "uid": "group13-gesture",
+  "title": "Group 13 — Edge-ML Gesture Controller",
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Recognised Gestures per Minute (by Class)",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"gestures\" and r._field == \"count\")\n  |> group(columns: [\"gesture\"])\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: true)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Decision Latency by Mode (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"metrics\" and r._field == \"lat_ms\")\n  |> group(columns: [\"mode\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: median, createEmpty: false)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "MQTT Payload Bytes per Window (by Mode)",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"metrics\" and r._field == \"bytes\")\n  |> group(columns: [\"mode\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Classifier Confidence",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 6, "x": 12, "y": 9 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"gestures\" and r._field == \"conf\")\n  |> group(columns: [\"gesture\"])"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Controller Status (1 = Online)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 9 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"device_status\" and r._field == \"online\")\n  |> last()"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Cloud Timeouts (Window Loss Count)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 13 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-iot" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"iot\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"metrics\" and r._field == \"timeout\")\n  |> sum()"
+        }
+      ]
+    }
+  ]
+}

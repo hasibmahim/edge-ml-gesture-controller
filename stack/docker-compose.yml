@@ -1,0 +1,61 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:-group13-influx-pass}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-iot}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-iot}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN:-group13-dev-influx-token-change-me}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  nodered:
+    image: nodered/node-red:4.0
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered-data:/data
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-group13-grafana-pass}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG:-iot}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-iot}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:-group13-dev-influx-token-change-me}
+      GF_SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${SMTP_HOST:-}
+      GF_SMTP_USER: ${SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${SMTP_FROM:-}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - influxdb
+
+volumes:
+  mosquitto-data:
+  influxdb-data:
+  nodered-data:
+  grafana-data:
